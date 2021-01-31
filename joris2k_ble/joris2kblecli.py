@@ -1,6 +1,8 @@
 #!/bin/env python3
 """ Cli tool for testing connectivity with Joris2k BLE devices. """
 import sys
+import asyncio
+import signal
 import logging
 import click
 import re
@@ -26,7 +28,9 @@ def cli(ctx, mac, debug):
         logging.basicConfig(level=logging.INFO)
 
     dev = smartmeter.SmartMeter(mac)
-    dev.update()
+    asyncio.get_event_loop().run_until_complete(dev.connect())
+    asyncio.get_event_loop().run_until_complete(dev.update())
+    asyncio.get_event_loop().run_until_complete(dev.disconnect())
     ctx.obj = dev
 
 @cli.command()
@@ -44,14 +48,24 @@ def info(dev):
     #        % (dev.current_power_usage))
     click.echo("Current gas consumption: %.3f m3" \
             % (dev.gas_consumption))
+cli.add_command(info)
 
 @cli.command()
 @pass_dev_smartmeter
 def events(dev):
     """Get state using notifications."""
-    
+    loop = asyncio.get_event_loop()
+    #loop.run_until_complete().subscribe()
+    loop.run_forever()
+cli.add_command(events)
 
-cli.add_command(info)
+def sigbreak_handler(signum, frame):
+    # Return from event loop
+    asyncio.get_running_loop().stop()
 
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGBREAK, sigbreak_handler)
     cli()
+    loop.close()
+

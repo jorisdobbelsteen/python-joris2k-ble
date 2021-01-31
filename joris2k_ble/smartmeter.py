@@ -4,6 +4,7 @@ Use update() to retrieve new values, allowing power saving.
 Notifications are supported to get updates from device.
 """
 
+import asyncio
 import logging
 from struct import unpack
 
@@ -38,7 +39,7 @@ class SmartMeter:
         self._clearvalues()
 
         # Create BLE connection
-        self._conn = connection_cls(macaddr)
+        self._conn = BTLEConnection(macaddr)
         # Get BLE characteristics
         #self._cPowerConsumption = self._conn.getCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_CONSUMPTION)
         #self._cPowerTariff = self._conn.getCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_TARIFF)
@@ -48,7 +49,7 @@ class SmartMeter:
         #self._cGasConsumption = self._conn.getCharacteristic(SMARTMETER_GAS_SVC, SMARTMETER_GAS_CONSUMPTION)
         #self._cGasDate = self._conn.getCharacteristic(SMARTMETER_GAS_SVC, SMARTMETER_GAS_DATE)
         # Setup callbacks
-        self._conn.set_callback(PROP_NTFY_HANDLE, self.handle_notification)
+        #self._conn.set_callback(PROP_NTFY_HANDLE, self.handle_notification)
 
     def _clearvalues(self):
         self._pwrConsumption = [-1, -1, -1, -1]
@@ -57,19 +58,25 @@ class SmartMeter:
         self._pwrPower = [-1, -1, -1,  -1, -1, -1,  -1, -1, -1,  -1, -1, -1]
         self._gasConsumption = [-1]
 
+    async def connect(self):
+        return await self._conn.connect()
+
+    async def disconnect(self):
+        return await self._conn.disconnect()
+
     def handle_notification(self, data):
         """Handle Callback from a Bluetooth (GATT) request."""
         _LOGGER.debug("Received notification from the device..")
 
-    def update(self):
+    async def update(self):
         """Read data from the device."""
         self._clearvalues()  # Ensure all values are reset so we only have the latest data
         _LOGGER.debug("Querying device.")
-        self._pwrConsumption = unpack('<iiii', self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_CONSUMPTION))
-        self._pwrTariff = unpack('<B', self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_TARIFF))[0]
-        self._pwrPower = unpack('<iii', self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_POWER))
-        #self._pwrPhaseInfo = unpack('<iiiiiiiiiiii', self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_PHASEINFO))
-        self._gasConsumption = unpack('<i', self._conn.readCharacteristic(SMARTMETER_GAS_SVC, SMARTMETER_GAS_CONSUMPTION))
+        self._pwrConsumption = unpack('<iiii', await self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_CONSUMPTION))
+        self._pwrTariff = unpack('<B', await self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_TARIFF))[0]
+        self._pwrPower = unpack('<iii', await self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_POWER))
+        #self._pwrPhaseInfo = unpack('<iiiiiiiiiiii', await self._conn.readCharacteristic(SMARTMETER_POWER_SVC, SMARTMETER_POWER_PHASEINFO))
+        self._gasConsumption = unpack('<i', await self._conn.readCharacteristic(SMARTMETER_GAS_SVC, SMARTMETER_GAS_CONSUMPTION))
 
     @property
     def power_consumption(self):
